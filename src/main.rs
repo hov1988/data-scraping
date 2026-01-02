@@ -11,6 +11,7 @@ async fn main() -> anyhow::Result<()> {
 
     let cfg = Config::from_env()?;
 
+    // -------- STEP 1: crawl category pages --------
     let mut links: Vec<String> = crawler::crawl_first_pages(&cfg)
         .await?
         .into_iter()
@@ -22,8 +23,19 @@ async fn main() -> anyhow::Result<()> {
     println!("TOTAL ITEMS FOUND: {}", links.len());
     println!("==============================\n");
 
-    for link in &links {
-        println!("{}", link);
+    // -------- STEP 2: take first 1–2 links --------
+    let sample_links: Vec<String> = links.into_iter().take(2).collect();
+
+    println!("Fetching details for {} items...\n", sample_links.len());
+
+    // -------- STEP 3: fetch & parse details --------
+    let details = crawler::crawl_details(&sample_links).await?;
+
+    // -------- STEP 4: print results --------
+    for (idx, item) in details.iter().enumerate() {
+        println!("========== ITEM {} ==========", idx + 1);
+        println!("{:#?}", item);
+        println!();
     }
 
     Ok(())

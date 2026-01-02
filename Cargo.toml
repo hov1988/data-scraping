@@ -1,5 +1,5 @@
 [package]
-name = "arajark-data-scraping"
+name = "data-scraping"
 version = "0.1.0"
 edition = "2024"
 
@@ -14,3 +14,5 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 uuid = { version = "1", features = ["v4"] }
 anyhow = "1.0.96"
+dotenvy = "0.15"
+regex = "1.10"
