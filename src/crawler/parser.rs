@@ -4,6 +4,10 @@ use crate::crawler::models::{HouseDetails, PriceHistory};
 use regex::Regex;
 use crate::crawler::models::ContactInfo;
 use chrono::{DateTime, NaiveDateTime, Utc, NaiveDate};
+use crate::config::Config;
+use crate::crawler::fetcher;
+use tokio::time::{sleep, Duration};
+use crate::crawler::parser;
 
 fn normalize_price_date(raw: &str) -> Option<String> {
     // Example: "December 07, 2025"
@@ -99,92 +103,6 @@ pub fn parse_created_updated_iso(
     (created_at, updated_at)
 }
 
-
-pub fn parse_image_urls(html: &str) -> Vec<String> {
-    let doc = Html::parse_document(html);
-    let img_sel = Selector::parse("img").unwrap();
-
-    let mut urls: Vec<String> = Vec::new();
-
-    // 1️⃣ Find FIRST image only
-    for img in doc.select(&img_sel) {
-        let attrs = img.value();
-
-        let src = attrs
-            .attr("src")
-            .or_else(|| attrs.attr("data-src"))
-            .or_else(|| attrs.attr("data-original"));
-
-        if let Some(src) = src {
-            if src.contains("s.list.am") {
-                let cleaned = src
-                    .trim()
-                    .trim_start_matches("//")
-                    .to_string();
-
-                urls.push(cleaned);
-                break; // 🔴 IMPORTANT: stop after first image
-            }
-        }
-    }
-
-    // If no image at all → return empty
-    let first = match urls.first() {
-        Some(v) => v.clone(),
-        None => return vec![],
-    };
-
-    // 2️⃣ Detect image count from gallery divs
-    let gallery_sel = Selector::parse("div.p").unwrap();
-    let item_sel = Selector::parse("div.p > div").unwrap();
-
-    let gallery = match doc.select(&gallery_sel).next() {
-        Some(v) => v,
-        None => return vec![first],
-    };
-
-    let gallery_width = gallery
-        .value()
-        .attr("style")
-        .and_then(extract_width_px)
-        .unwrap_or(0);
-
-    let item_width = gallery
-        .select(&item_sel)
-        .next()
-        .and_then(|n| n.value().attr("style"))
-        .and_then(extract_width_px)
-        .unwrap_or(0);
-
-    if gallery_width == 0 || item_width == 0 {
-        return vec![first];
-    }
-
-    let image_count = (gallery_width / item_width) as usize;
-
-    // 3️⃣ Generate sequential URLs
-    let (base, number_part) = match first.rsplit_once('/') {
-        Some(v) => v,
-        None => return vec![first],
-    };
-
-    let start_number: u64 = match number_part
-        .trim_end_matches(".webp")
-        .parse()
-    {
-        Ok(v) => v,
-        Err(_) => return vec![first],
-    };
-
-    let mut generated = Vec::new();
-    for i in 0..image_count {
-        generated.push(format!("{}/{}.webp", base, start_number + i as u64));
-    }
-
-    generated
-}
-
-
 pub fn extract_item_links(html: &str) -> HashSet<String> {
     let document = Html::parse_document(html);
     let selector = Selector::parse("a[href*=\"/en/item/\"]").unwrap();
@@ -201,6 +119,45 @@ pub fn extract_item_links(html: &str) -> HashSet<String> {
     }
 
     links
+}
+
+pub async fn crawl_first_pages(cfg: &Config) -> anyhow::Result<HashSet<String>> {
+    let client = fetcher::build_client();
+    let mut all_links: HashSet<String> = HashSet::new();
+
+    for page in cfg.start_page..=cfg.end_page {
+        let url = format!("{}/{}", cfg.base_url, page);
+        println!("Fetching page {}", page);
+
+        let html = fetcher::fetch_html(&client, &url).await?;
+        let page_links = parser::extract_item_links(&html);
+
+        all_links.extend(page_links);
+
+        sleep(Duration::from_millis(cfg.delay_ms)).await;
+    }
+
+    Ok(all_links)
+}
+
+pub fn parse_image_urls(html: &str) -> Vec<String> {
+    // Match: img:["url1","url2",...]
+    let re = Regex::new(r#"img\s*:\s*\[(?P<list>[^\]]+)\]"#).unwrap();
+
+    let caps = match re.captures(html) {
+        Some(c) => c,
+        None => return vec![],
+    };
+
+    let list = caps.name("list").unwrap().as_str();
+
+    // Match each quoted URL
+    let url_re = Regex::new(r#""(//s\.list\.am/[^"]+)""#).unwrap();
+
+    url_re
+        .captures_iter(list)
+        .map(|c| c[1].trim_start_matches("//").to_string())
+        .collect()
 }
 
 pub fn scrape_house_details(html: &str) -> HouseDetails {

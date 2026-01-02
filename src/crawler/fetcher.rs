@@ -31,10 +31,7 @@ pub async fn fetch_phone_popup_html(
     );
 
     let res = client.get(url).send().await?;
-
-    // 🔎 DEBUG — keep until confirmed working
     let text = res.text().await?;
-    println!("{}", text);
 
     Ok(text)
 }
@@ -48,7 +45,6 @@ pub async fn download_images(
     fs::create_dir_all(&dir).await?;
 
     for (idx, url) in image_urls.iter().enumerate() {
-        // 🔹 Convert protocol-less URL to absolute URL
         let full_url = if url.starts_with("http://") || url.starts_with("https://") {
             url.clone()
         } else {
@@ -63,7 +59,6 @@ pub async fn download_images(
             }
         };
 
-        // 🔹 Stop when images end
         if !res.status().is_success() {
             println!("Stopping image download at {}", full_url);
             break;
@@ -74,8 +69,6 @@ pub async fn download_images(
         let filename = format!("{}/{}.webp", dir, idx + 1);
         let mut file = fs::File::create(&filename).await?;
         file.write_all(&bytes).await?;
-
-        println!("Saved image {}", filename);
     }
 
     Ok(())

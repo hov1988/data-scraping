@@ -3,23 +3,40 @@ mod crawler;
 mod storage;
 mod scheduler;
 
+use config::Config;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
-    // Single item link
-    let link = "https://www.list.am/en/item/22137770?ld_src=2".to_string();
+    let cfg = Config::from_env()?;
 
-    println!("Fetching details for single item...\n");
+    // 1️⃣ Crawl listing pages (links only)
+    let mut links: Vec<String> = crawler::crawl_first_pages(&cfg)
+        .await?
+        .into_iter()
+        .collect();
 
-    let details = crawler::crawl_details(&vec![link]).await?;
+    links.sort();
 
-    // Print result
-    if let Some(item) = details.first() {
+    println!("\n==============================");
+    println!("TOTAL ITEMS FOUND: {}", links.len());
+    println!("==============================\n");
+
+    // Optional: print links
+    for link in &links {
+        println!("{}", link);
+    }
+
+    println!("\nFetching details for items...\n");
+
+    // 2️⃣ Crawl details (RETURNS DATA)
+    let details = crawler::crawl_details(&links).await?;
+
+    // 3️⃣ Print first 1–2 items as sample
+    for item in details.iter().take(2) {
         println!("========== ITEM DETAILS ==========");
         println!("{:#?}", item);
-    } else {
-        println!("No data extracted");
     }
 
     Ok(())

@@ -43,7 +43,6 @@ pub async fn crawl_details(
             // parse images
             let images = parser::parse_image_urls(&html);
 
-            println!("Found {} images", images.len());
             details.images = images.clone();
             fetcher::download_images(&client, &images, &external_id).await?;
             
