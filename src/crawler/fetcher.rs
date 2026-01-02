@@ -2,6 +2,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
+use tracing::error;
 
 #[derive(Deserialize)]
 struct PhoneResponse {
@@ -54,13 +55,13 @@ pub async fn download_images(
         let res = match client.get(&full_url).send().await {
             Ok(r) => r,
             Err(e) => {
-                eprintln!("Request failed for {}: {}", full_url, e);
+                error!("Request failed for {}: {}", full_url, e);
                 break;
             }
         };
 
         if !res.status().is_success() {
-            println!("Stopping image download at {}", full_url);
+            error!("Stopping image download at {}", full_url);
             break;
         }
 

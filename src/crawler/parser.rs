@@ -1,4 +1,5 @@
 use scraper::{Html, Selector};
+use tracing::debug;
 use std::collections::HashSet;
 use crate::crawler::models::{HouseDetails, PriceHistory};
 use regex::Regex;
@@ -127,7 +128,7 @@ pub async fn crawl_first_pages(cfg: &Config) -> anyhow::Result<HashSet<String>> 
 
     for page in cfg.start_page..=cfg.end_page {
         let url = format!("{}/{}", cfg.base_url, page);
-        println!("Fetching page {}", page);
+        debug!("Fetching page {}", page);
 
         let html = fetcher::fetch_html(&client, &url).await?;
         let page_links = parser::extract_item_links(&html);
@@ -333,7 +334,6 @@ fn split_list(value: Option<&String>) -> Vec<String> {
 }
 
 fn extract_width_px(style: &str) -> Option<u64> {
-    // style="width: 787px; height: 280px;"
     style
         .split(';')
         .find(|s| s.contains("width"))

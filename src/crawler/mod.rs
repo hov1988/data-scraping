@@ -1,6 +1,6 @@
 use std::collections::HashSet;
-use serde::de;
 use tokio::time::{sleep, Duration};
+use tracing::{debug, info};
 use crate::crawler::models::HouseDetails;
 use crate::config::Config;
 
@@ -24,20 +24,20 @@ pub async fn crawl_details(
             .unwrap()
             .to_string();
 
-            println!("Fetching detail page for item {}", external_id);
+            info!("Fetching detail page for item {}", external_id);
 
-            // 1️⃣ Fetch main item page
+            // Fetch main item page
             let html = fetcher::fetch_html(&client, link).await?;
             let mut details = parser::scrape_house_details(&html, &external_id, link);
             
-            // 2️⃣ Fetch popup HTML
+            // Fetch popup HTML
             let popup_html =
                 fetcher::fetch_phone_popup_html(&client, &external_id).await?;
             
-            // 3️⃣ Parse contact info
+            // Parse contact info
             let contact = parser::parse_contact_from_popup(&popup_html);
             
-            // 4️⃣ Assign contact info
+            // Assign contact info
             details.contact = contact;
 
             // parse images
@@ -65,7 +65,7 @@ pub async fn crawl_first_pages(cfg: &Config) -> anyhow::Result<HashSet<String>> 
 
     for page in cfg.start_page..=cfg.end_page {
         let url = format!("{}/{}", cfg.base_url, page);
-        println!("Fetching page {}", page);
+        debug!("Fetching page {}", page);
 
         let html = fetcher::fetch_html(&client, &url).await?;
         let page_links = parser::extract_item_links(&html);
