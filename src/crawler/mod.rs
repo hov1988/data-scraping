@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use serde::de;
 use tokio::time::{sleep, Duration};
 use crate::crawler::models::HouseDetails;
 use crate::config::Config;
@@ -23,13 +24,34 @@ pub async fn crawl_details(
             .unwrap()
             .to_string();
 
-        println!("Fetching detail page for item {}", external_id);
+            println!("Fetching detail page for item {}", external_id);
 
-        let html = fetcher::fetch_html(&client, link).await?;
+            // 1️⃣ Fetch main item page
+            let html = fetcher::fetch_html(&client, link).await?;
+            let mut details = parser::scrape_house_details(&html);
+            
+            // 2️⃣ Fetch popup HTML
+            let popup_html =
+                fetcher::fetch_phone_popup_html(&client, &external_id).await?;
+            
+            // 3️⃣ Parse contact info
+            let contact = parser::parse_contact_from_popup(&popup_html);
+            
+            // 4️⃣ Assign contact info
+            details.contact = contact;
 
-        let details = parser::scrape_house_details(&html);
+            // parse images
+            let images = parser::parse_image_urls(&html);
 
-        results.push(details);
+            println!("Found {} images", images.len());
+            details.images = images.clone();
+            fetcher::download_images(&client, &images, &external_id).await?;
+            
+            results.push(details);
+            
+            // polite delay
+            sleep(Duration::from_millis(300)).await;
+            
 
         // polite delay
         sleep(Duration::from_millis(300)).await;

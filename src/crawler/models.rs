@@ -4,7 +4,26 @@ pub struct ItemLink {
 }
 
 #[derive(Debug)]
+pub struct ContactInfo {
+    pub seller_name: Option<String>,
+    pub phone_display: Option<String>,
+    pub phone_raw: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct PriceHistory {
+    pub date: String,
+    pub price: String,
+    pub diff: Option<String>,
+}
+
+#[derive(Debug)]
 pub struct HouseDetails {
+    pub title: Option<String>,
+    pub price: Option<String>,
+    pub contact: ContactInfo,
+    pub images: Vec<String>,
+    pub price_history: Vec<PriceHistory>,
     pub condition: Option<String>,
     pub rooms: Option<u8>,
     pub house_area_m2: Option<f32>,
@@ -18,14 +37,8 @@ pub struct HouseDetails {
     pub facilities: Vec<String>,
     pub furniture: Option<String>,
     pub land_area_m2: Option<f32>,
-    pub price_history: Vec<PriceHistory>,
     pub description: String,
     pub location: Option<String>,
-}
-
-#[derive(Debug)]
-pub struct PriceHistory {
-    pub date: String,
-    pub price: String,
-    pub diff: Option<String>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
 }
