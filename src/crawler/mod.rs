@@ -6,7 +6,7 @@ use crate::config::Config;
 
 mod fetcher;
 mod parser;
-mod models;
+pub mod models;
 
 pub async fn crawl_details(
     links: &[String],
@@ -28,7 +28,7 @@ pub async fn crawl_details(
 
             // 1️⃣ Fetch main item page
             let html = fetcher::fetch_html(&client, link).await?;
-            let mut details = parser::scrape_house_details(&html);
+            let mut details = parser::scrape_house_details(&html, &external_id, link);
             
             // 2️⃣ Fetch popup HTML
             let popup_html =

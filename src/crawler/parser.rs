@@ -160,7 +160,11 @@ pub fn parse_image_urls(html: &str) -> Vec<String> {
         .collect()
 }
 
-pub fn scrape_house_details(html: &str) -> HouseDetails {
+pub fn scrape_house_details(
+    html: &str, 
+    external_id: &str,
+    url: &str,
+) -> HouseDetails {
     let doc = Html::parse_document(html);
 
     // Take ALL visible text and normalize into non-empty tokens.
@@ -256,8 +260,10 @@ pub fn scrape_house_details(html: &str) -> HouseDetails {
 
     // -------- Build final struct (label -> next token) --------
     HouseDetails {
+        external_id: external_id.to_string(),
         title,
         price,
+        url: url.to_string(),
         contact: ContactInfo {
             seller_name,
             phone_display: None,

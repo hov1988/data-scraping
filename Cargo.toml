@@ -16,3 +16,10 @@ uuid = { version = "1", features = ["v4"] }
 anyhow = "1.0.96"
 dotenvy = "0.15"
 regex = "1.10"
+sqlx = { version = "0.8.6", features = [
+  "runtime-tokio-rustls",
+  "postgres",
+  "macros",
+  "migrate",
+  "chrono"
+] }

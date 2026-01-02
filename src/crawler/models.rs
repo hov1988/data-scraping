@@ -19,6 +19,8 @@ pub struct PriceHistory {
 
 #[derive(Debug)]
 pub struct HouseDetails {
+    pub external_id: String,
+    pub url: String,  
     pub title: Option<String>,
     pub price: Option<String>,
     pub contact: ContactInfo,
