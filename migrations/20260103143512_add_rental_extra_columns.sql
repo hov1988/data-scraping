@@ -1,0 +1,15 @@
+-- Add migration script here
+ALTER TABLE houses_data.list_am_houses
+ADD COLUMN IF NOT EXISTS amenities TEXT,
+ADD COLUMN IF NOT EXISTS comfort TEXT,
+ADD COLUMN IF NOT EXISTS ceiling_height TEXT,
+ADD COLUMN IF NOT EXISTS prepayment TEXT,
+ADD COLUMN IF NOT EXISTS utility_payments TEXT,
+ADD COLUMN IF NOT EXISTS lease_type TEXT,
+ADD COLUMN IF NOT EXISTS minimum_rental_period TEXT,
+ADD COLUMN IF NOT EXISTS sewerage TEXT,
+ADD COLUMN IF NOT EXISTS parking TEXT,
+ADD COLUMN IF NOT EXISTS entrance TEXT,
+ADD COLUMN IF NOT EXISTS location_from_street TEXT,
+ADD COLUMN IF NOT EXISTS elevator TEXT,
+ADD COLUMN IF NOT EXISTS floor_area TEXT;

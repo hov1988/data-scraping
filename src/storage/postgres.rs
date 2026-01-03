@@ -72,6 +72,19 @@ impl Storage {
                 furniture,
                 description,
                 location,
+                amenities,
+                comfort,
+                ceiling_height,
+                prepayment,
+                utility_payments,
+                lease_type,
+                minimum_rental_period,
+                sewerage,
+                parking,
+                entrance,
+                location_from_street,
+                elevator,
+                floor_area,
                 created_at,
                 updated_at
             )
@@ -80,7 +93,8 @@ impl Storage {
                 $5,
                 $6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
                 $16,$17,
-                $18,$19
+                $18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,
+                $31,$32
             )
             ON CONFLICT (external_id) DO UPDATE SET
                 title = EXCLUDED.title,
@@ -98,6 +112,19 @@ impl Storage {
                 furniture = EXCLUDED.furniture,
                 description = EXCLUDED.description,
                 location = EXCLUDED.location,
+                amenities = EXCLUDED.amenities,
+                comfort = EXCLUDED.comfort,
+                ceiling_height = EXCLUDED.ceiling_height,
+                prepayment = EXCLUDED.prepayment,
+                utility_payments = EXCLUDED.utility_payments,
+                lease_type = EXCLUDED.lease_type,
+                minimum_rental_period = EXCLUDED.minimum_rental_period,
+                sewerage = EXCLUDED.sewerage,
+                parking = EXCLUDED.parking,
+                entrance = EXCLUDED.entrance,
+                location_from_street = EXCLUDED.location_from_street,
+                elevator = EXCLUDED.elevator,
+                floor_area = EXCLUDED.floor_area,
                 updated_at = EXCLUDED.updated_at,
                 scraped_at = now()
             RETURNING id
@@ -119,12 +146,25 @@ impl Storage {
             house.furniture,
             house.description,
             house.location,
+            house.amenities,
+            house.comfort,
+            house.ceiling_height,
+            house.prepayment,
+            house.utility_payments,
+            house.lease_type,
+            house.minimum_rental_period,
+            house.sewerage,
+            house.parking,
+            house.entrance,
+            house.location_from_street,
+            house.elevator,
+            house.floor_area,
             parse_iso(&house.created_at),
             parse_iso(&house.updated_at)
         )
-        .fetch_one(&mut **tx)   // 🔥 THE FIX
+        .fetch_one(&mut **tx)
         .await?
-        .id;
+        .id;        
 
         // Phones
         for phone in &house.contact.phones {
@@ -133,14 +173,17 @@ impl Storage {
                 INSERT INTO houses_data.list_am_phones
                     (house_id, raw, display, source)
                 VALUES ($1, $2, $3, $4)
-                ON CONFLICT (house_id, raw) DO NOTHING
+                ON CONFLICT (house_id, source)
+                DO UPDATE SET
+                    raw = EXCLUDED.raw,
+                    display = EXCLUDED.display
                 "#,
                 house_id,
                 phone.raw,
                 phone.display,
                 phone.source
             )
-            .execute(&mut **tx)   // 🔥
+            .execute(&mut **tx) 
             .await?;
         }
 
@@ -155,7 +198,7 @@ impl Storage {
                 INSERT INTO houses_data.list_am_price_history
                     (house_id, date, price, diff)
                 VALUES ($1, $2, $3, $4)
-                ON CONFLICT DO NOTHING
+                ON CONFLICT (house_id, date, price, diff) DO NOTHING
                 "#,
                 house_id,
                 date,
@@ -203,7 +246,7 @@ impl Storage {
                 INSERT INTO houses_data.list_am_features
                     (house_id, feature_type, value)
                 VALUES ($1, $2, $3)
-                ON CONFLICT DO NOTHING
+                ON CONFLICT (house_id, feature_type, value) DO NOTHING
                 "#,
                 house_id,
                 feature_type,
