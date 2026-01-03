@@ -1,8 +1,8 @@
 use anyhow::Result;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres, Transaction};
-
-use crate::crawler::models::{HouseDetails, PriceHistory};
 use chrono::{DateTime, Utc};
+
+use crate::crawler::models::HouseDetails;
 
 pub struct Storage {
     pool: PgPool,
@@ -18,13 +18,43 @@ impl Storage {
         Ok(Self { pool })
     }
 
-    /// Save full house details (UPSERT + children in transaction)
+    // ---------------------------------------------------------------------
+    // ✅ PUBLIC API — batch insert
+    // ---------------------------------------------------------------------
+    pub async fn save_houses_batch(
+        &self,
+        houses: &[HouseDetails],
+    ) -> Result<usize> {
+        let mut tx = self.pool.begin().await?;
+        let mut saved = 0usize;
+
+        for house in houses {
+            self.save_house_tx(&mut tx, house).await?;
+            saved += 1;
+        }
+
+        tx.commit().await?;
+        Ok(saved)
+    }
+
+    // ---------------------------------------------------------------------
+    // (Optional) single insert wrapper
+    // ---------------------------------------------------------------------
     pub async fn save_house(&self, house: &HouseDetails) -> Result<i64> {
         let mut tx = self.pool.begin().await?;
+        let id = self.save_house_tx(&mut tx, house).await?;
+        tx.commit().await?;
+        Ok(id)
+    }
 
-        // --------------------
-        // House (UPSERT)
-        // --------------------
+    // ---------------------------------------------------------------------
+    // 🔒 INTERNAL — core logic (NO begin / commit here)
+    // ---------------------------------------------------------------------
+    async fn save_house_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        house: &HouseDetails,
+    ) -> Result<i64> {
         let house_id = sqlx::query!(
             r#"
             INSERT INTO houses_data.list_am_houses (
@@ -112,7 +142,7 @@ impl Storage {
             parse_iso(&house.created_at),
             parse_iso(&house.updated_at)
         )
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await?
         .id;
 
@@ -123,7 +153,7 @@ impl Storage {
             let date = DateTime::parse_from_rfc3339(&p.date)
                 .map(|dt| dt.with_timezone(&Utc))
                 .ok();
-        
+
             sqlx::query!(
                 r#"
                 INSERT INTO houses_data.list_am_price_history
@@ -132,11 +162,11 @@ impl Storage {
                 ON CONFLICT DO NOTHING
                 "#,
                 house_id,
-                date,        // ✅ DateTime<Utc>
+                date,
                 p.price,
                 p.diff
             )
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
         }
 
@@ -154,18 +184,17 @@ impl Storage {
                 pos as i32,
                 url
             )
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
         }
 
         // --------------------
         // Features
         // --------------------
-        Self::insert_features(&mut tx, house_id, "appliances", &house.appliances).await?;
-        Self::insert_features(&mut tx, house_id, "service_lines", &house.service_lines).await?;
-        Self::insert_features(&mut tx, house_id, "facilities", &house.facilities).await?;
+        Self::insert_features(tx, house_id, "appliances", &house.appliances).await?;
+        Self::insert_features(tx, house_id, "service_lines", &house.service_lines).await?;
+        Self::insert_features(tx, house_id, "facilities", &house.facilities).await?;
 
-        tx.commit().await?;
         Ok(house_id)
     }
 
@@ -192,7 +221,6 @@ impl Storage {
         Ok(())
     }
 }
-
 
 fn parse_iso(ts: &Option<String>) -> Option<DateTime<Utc>> {
     ts.as_ref()

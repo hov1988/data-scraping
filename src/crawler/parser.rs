@@ -16,7 +16,7 @@ fn normalize_price_date(raw: &str) -> Option<String> {
         .ok()
         .map(|d| {
             let dt = d.and_hms_opt(0, 0, 0)?;
-            let utc: DateTime<Utc> = DateTime::from_utc(dt, Utc);
+            let utc: DateTime<Utc> = DateTime::from_naive_utc_and_offset(dt, Utc);
             Some(utc.to_rfc3339())
         })
         .flatten()
@@ -96,7 +96,7 @@ pub fn parse_created_updated_iso(
             NaiveDateTime::parse_from_str(&raw, "%d.%m.%Y %H:%M")
                 .ok()
                 .map(|dt| {
-                    let utc: DateTime<Utc> = DateTime::from_utc(dt, Utc);
+                    let utc: DateTime<Utc> = DateTime::from_naive_utc_and_offset(dt, Utc);
                     utc.to_rfc3339()
                 })
         });

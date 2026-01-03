@@ -77,3 +77,20 @@ pub async fn crawl_first_pages(cfg: &Config) -> anyhow::Result<HashSet<String>> 
 
     Ok(all_links)
 }
+
+pub async fn crawl_page_links(
+    cfg: &Config,
+    page: u32,
+) -> anyhow::Result<Vec<String>> {
+    let client = fetcher::build_client();
+    let url = format!("{}/{}", cfg.base_url, page);
+
+    tracing::info!(page, "Fetching listing page");
+
+    let html = fetcher::fetch_html(&client, &url).await?;
+    let links = parser::extract_item_links(&html)
+        .into_iter()
+        .collect();
+
+    Ok(links)
+}
