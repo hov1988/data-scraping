@@ -1,7 +1,7 @@
 use scraper::{Html, Selector};
 use tracing::debug;
 use std::collections::HashSet;
-use crate::crawler::models::{HouseDetails, PriceHistory};
+use crate::crawler::models::{HouseDetails, PriceHistory, ContactPhone};
 use regex::Regex;
 use crate::crawler::models::ContactInfo;
 use chrono::{DateTime, NaiveDateTime, Utc, NaiveDate};
@@ -267,8 +267,7 @@ pub fn scrape_house_details(
         url: url.to_string(),
         contact: ContactInfo {
             seller_name,
-            phone_display: None,
-            phone_raw: None,
+            phones: vec![],
         },
         price_history,
         images: vec![],
@@ -292,33 +291,99 @@ pub fn scrape_house_details(
     }
 }
 
-
 pub fn parse_contact_from_popup(html: &str) -> ContactInfo {
     let doc = Html::parse_fragment(html);
 
-    // Seller name: <span class="nmsp">Grigor</span>
+    // --------------------
+    // Seller name
+    // --------------------
     let seller_name = Selector::parse("span.nmsp")
         .ok()
         .and_then(|sel| doc.select(&sel).next())
         .map(|e| e.text().collect::<String>().trim().to_string());
 
-    // Display phone: <div class="phone-number-section">(099) 09-91-11</div>
-    let phone_display = Selector::parse(".phone-number-section")
-        .ok()
-        .and_then(|sel| doc.select(&sel).next())
-        .map(|e| e.text().collect::<String>().trim().to_string());
+    let mut phones: Vec<ContactPhone> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
 
-    // Raw phone: <a href="tel:099099111" class="phone-number">
-    let phone_raw = Selector::parse("a.phone-number")
-        .ok()
-        .and_then(|sel| doc.select(&sel).next())
-        .and_then(|e| e.value().attr("href"))
-        .map(|href| href.replace("tel:", "").trim().to_string());
+    // --------------------
+    // Direct phone(s)
+    // <a href="tel:091071996" class="phone-number">
+    // --------------------
+    if let Ok(sel) = Selector::parse("a.phone-number") {
+        let display_sel = Selector::parse(".phone-number-section").unwrap();
+
+        for el in doc.select(&sel) {
+            if let Some(href) = el.value().attr("href") {
+                let raw = href.replace("tel:", "").trim().to_string();
+
+                let display = el
+                    .select(&display_sel)
+                    .next()
+                    .map(|e| e.text().collect::<String>().trim().to_string())
+                    .unwrap_or_else(|| raw.clone());
+
+                if seen.insert(raw.clone()) {
+                    phones.push(ContactPhone {
+                        raw,
+                        display,
+                        source: "direct".to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    // --------------------
+    // Viber
+    // <a href="viber://chat?number=+37491071996">
+    // --------------------
+    if let Ok(sel) = Selector::parse(r#"a[href^="viber://chat"]"#) {
+        for el in doc.select(&sel) {
+            if let Some(href) = el.value().attr("href") {
+                if let Some(num) = href.split("number=").nth(1) {
+                    let raw = num.trim_start_matches('+').to_string();
+                    let display = el.text().collect::<String>().trim().to_string();
+
+                    if seen.insert(raw.clone()) {
+                        phones.push(ContactPhone {
+                            raw,
+                            display,
+                            source: "viber".to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // --------------------
+    // WhatsApp
+    // <a href="https://wa.me/37491071996">
+    // --------------------
+    if let Ok(sel) = Selector::parse(r#"a[href^="https://wa.me/"]"#) {
+        for el in doc.select(&sel) {
+            if let Some(href) = el.value().attr("href") {
+                let raw = href
+                    .trim_start_matches("https://wa.me/")
+                    .trim()
+                    .to_string();
+
+                let display = el.text().collect::<String>().trim().to_string();
+
+                if seen.insert(raw.clone()) {
+                    phones.push(ContactPhone {
+                        raw,
+                        display,
+                        source: "whatsapp".to_string(),
+                    });
+                }
+            }
+        }
+    }
 
     ContactInfo {
         seller_name,
-        phone_display,
-        phone_raw,
+        phones,
     }
 }
 

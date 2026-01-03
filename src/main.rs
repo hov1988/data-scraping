@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
             }
         };
 
-        // 3️⃣ Save ALL houses from this page in ONE transaction
+        // Save ALL houses from this page in ONE transaction
         match storage.save_houses_batch(&houses).await {
             Ok(saved) => {
                 total_saved += saved;

@@ -1,6 +1,11 @@
 use anyhow::Result;
-use sqlx::{postgres::PgPoolOptions, PgPool, Postgres, Transaction};
 use chrono::{DateTime, Utc};
+use sqlx::{
+    postgres::PgPoolOptions,
+    PgPool,
+    Postgres,
+    Transaction,
+};
 
 use crate::crawler::models::HouseDetails;
 
@@ -18,9 +23,6 @@ impl Storage {
         Ok(Self { pool })
     }
 
-    // ---------------------------------------------------------------------
-    // ✅ PUBLIC API — batch insert
-    // ---------------------------------------------------------------------
     pub async fn save_houses_batch(
         &self,
         houses: &[HouseDetails],
@@ -37,9 +39,6 @@ impl Storage {
         Ok(saved)
     }
 
-    // ---------------------------------------------------------------------
-    // (Optional) single insert wrapper
-    // ---------------------------------------------------------------------
     pub async fn save_house(&self, house: &HouseDetails) -> Result<i64> {
         let mut tx = self.pool.begin().await?;
         let id = self.save_house_tx(&mut tx, house).await?;
@@ -47,14 +46,12 @@ impl Storage {
         Ok(id)
     }
 
-    // ---------------------------------------------------------------------
-    // 🔒 INTERNAL — core logic (NO begin / commit here)
-    // ---------------------------------------------------------------------
     async fn save_house_tx(
         &self,
         tx: &mut Transaction<'_, Postgres>,
         house: &HouseDetails,
     ) -> Result<i64> {
+
         let house_id = sqlx::query!(
             r#"
             INSERT INTO houses_data.list_am_houses (
@@ -62,11 +59,7 @@ impl Storage {
                 url,
                 title,
                 price,
-
                 seller_name,
-                phone_display,
-                phone_raw,
-
                 condition,
                 rooms,
                 house_area_m2,
@@ -77,28 +70,22 @@ impl Storage {
                 garage,
                 renovation,
                 furniture,
-
                 description,
                 location,
-
                 created_at,
                 updated_at
             )
             VALUES (
                 $1,$2,$3,$4,
-                $5,$6,$7,
-                $8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
-                $18,$19,
-                $20,$21
+                $5,
+                $6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+                $16,$17,
+                $18,$19
             )
             ON CONFLICT (external_id) DO UPDATE SET
                 title = EXCLUDED.title,
                 price = EXCLUDED.price,
-
                 seller_name = EXCLUDED.seller_name,
-                phone_display = EXCLUDED.phone_display,
-                phone_raw = EXCLUDED.phone_raw,
-
                 condition = EXCLUDED.condition,
                 rooms = EXCLUDED.rooms,
                 house_area_m2 = EXCLUDED.house_area_m2,
@@ -109,7 +96,6 @@ impl Storage {
                 garage = EXCLUDED.garage,
                 renovation = EXCLUDED.renovation,
                 furniture = EXCLUDED.furniture,
-
                 description = EXCLUDED.description,
                 location = EXCLUDED.location,
                 updated_at = EXCLUDED.updated_at,
@@ -120,11 +106,7 @@ impl Storage {
             house.url,
             house.title,
             house.price,
-
             house.contact.seller_name,
-            house.contact.phone_display,
-            house.contact.phone_raw,
-
             house.condition,
             house.rooms.map(|v| v as i16),
             house.house_area_m2,
@@ -135,20 +117,34 @@ impl Storage {
             house.garage,
             house.renovation,
             house.furniture,
-
             house.description,
             house.location,
-
             parse_iso(&house.created_at),
             parse_iso(&house.updated_at)
         )
-        .fetch_one(&mut **tx)
+        .fetch_one(&mut **tx)   // 🔥 THE FIX
         .await?
         .id;
 
-        // --------------------
+        // Phones
+        for phone in &house.contact.phones {
+            sqlx::query!(
+                r#"
+                INSERT INTO houses_data.list_am_phones
+                    (house_id, raw, display, source)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (house_id, raw) DO NOTHING
+                "#,
+                house_id,
+                phone.raw,
+                phone.display,
+                phone.source
+            )
+            .execute(&mut **tx)   // 🔥
+            .await?;
+        }
+
         // Price history
-        // --------------------
         for p in &house.price_history {
             let date = DateTime::parse_from_rfc3339(&p.date)
                 .map(|dt| dt.with_timezone(&Utc))
@@ -170,15 +166,14 @@ impl Storage {
             .await?;
         }
 
-        // --------------------
         // Images
-        // --------------------
         for (pos, url) in house.images.iter().enumerate() {
             sqlx::query!(
                 r#"
                 INSERT INTO houses_data.list_am_images
                     (house_id, position, url)
                 VALUES ($1, $2, $3)
+                ON CONFLICT DO NOTHING
                 "#,
                 house_id,
                 pos as i32,
@@ -188,9 +183,7 @@ impl Storage {
             .await?;
         }
 
-        // --------------------
         // Features
-        // --------------------
         Self::insert_features(tx, house_id, "appliances", &house.appliances).await?;
         Self::insert_features(tx, house_id, "service_lines", &house.service_lines).await?;
         Self::insert_features(tx, house_id, "facilities", &house.facilities).await?;
@@ -210,6 +203,7 @@ impl Storage {
                 INSERT INTO houses_data.list_am_features
                     (house_id, feature_type, value)
                 VALUES ($1, $2, $3)
+                ON CONFLICT DO NOTHING
                 "#,
                 house_id,
                 feature_type,

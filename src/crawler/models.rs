@@ -4,10 +4,30 @@ pub struct ItemLink {
 }
 
 #[derive(Debug)]
+pub struct PhoneContact {
+    pub raw: String,
+    pub display: String,
+    pub source: PhoneSource,
+}
+
+#[derive(Debug)]
+pub enum PhoneSource {
+    Direct,
+    Viber,
+    WhatsApp,
+}
+
+#[derive(Debug, Clone)]
+pub struct ContactPhone {
+    pub raw: String,
+    pub display: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct ContactInfo {
     pub seller_name: Option<String>,
-    pub phone_display: Option<String>,
-    pub phone_raw: Option<String>,
+    pub phones: Vec<ContactPhone>,
 }
 
 #[derive(Debug)]
