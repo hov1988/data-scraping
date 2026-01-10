@@ -46,6 +46,51 @@ impl Storage {
         Ok(id)
     }
 
+    pub async fn mark_houses_as_deleted(
+        &self,
+        ids: &[i64],
+    ) -> Result<()> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+
+        sqlx::query!(
+            r#"
+            UPDATE houses_data.list_am_houses
+            SET deleted_at = now()
+            WHERE id = ANY($1)
+              AND deleted_at IS NULL
+            "#,
+            ids
+        )
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn fetch_active_houses_batch(
+        &self,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<(i64, String)>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, url
+            FROM houses_data.list_am_houses
+            WHERE deleted_at IS NULL
+            ORDER BY id
+            LIMIT $1 OFFSET $2
+            "#,
+            limit,
+            offset
+        )
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(rows.into_iter().map(|r| (r.id, r.url)).collect())
+    }
+
     async fn save_house_tx(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -244,6 +289,7 @@ impl Storage {
             sqlx::query!(
                 r#"
                 INSERT INTO houses_data.list_am_features
+
                     (house_id, feature_type, value)
                 VALUES ($1, $2, $3)
                 ON CONFLICT (house_id, feature_type, value) DO NOTHING

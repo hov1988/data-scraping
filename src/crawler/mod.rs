@@ -7,6 +7,7 @@ use crate::config::Config;
 mod fetcher;
 mod parser;
 pub mod models;
+pub mod service;
 
 pub async fn crawl_details(
     links: &[String],
